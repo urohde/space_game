@@ -1,8 +1,8 @@
 use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
 
 use crate::{
-    components::{Movable, Player, Velocity},
-    WinSize
+    components::{FromPlayer, Laser, Movable, Player, SpriteSize, Velocity},
+    WinSize,
 };
 
 const PLAYER_SIZE: Vec2 = Vec2::new(50., 50.);
@@ -28,12 +28,13 @@ fn spawn_player_system(mut commands: Commands, win_size: Res<WinSize>) {
                 ..default()
             },
             transform: Transform {
-                translation: Vec3::new(0.0, bottom + PLAYER_SIZE.y / 2.0 + 5.0, 10.0),
+                translation: Vec3::new(0.0, bottom + PLAYER_SIZE.y / 2.0 + 5.0, 10.),
                 ..default()
             },
             ..default()
         },))
         .insert(Player)
+        .insert(SpriteSize(PLAYER_SIZE))
         .insert(Movable {
             auto_despawn: false,
         })
@@ -60,6 +61,9 @@ fn player_fire_system(
                     transform: Transform::from_translation(Vec3::new(x, y, 1.)),
                     ..default()
                 })
+                .insert(Laser)
+                .insert(FromPlayer)
+                .insert(SpriteSize::from((10., 10.)))
                 .insert(Movable { auto_despawn: true })
                 .insert(Velocity { x: 0., y: 1. });
         }
@@ -80,4 +84,3 @@ fn player_keybord_event_system(
         };
     }
 }
-

@@ -1,8 +1,13 @@
-use bevy::prelude::*;
+use bevy::math::Vec3Swizzles;
+use bevy::utils::HashSet;
 use bevy::window::PrimaryWindow;
-use components::{Movable, Velocity};
+use bevy::{prelude::*, sprite::collide_aabb::collide};
+use components::{Enemy, FromPlayer, Laser, Movable, SpriteSize, Velocity};
+use enemy::EnemyPlugin;
+use player::PlayerPlugin;
 
 mod components;
+mod enemy;
 mod player;
 
 #[derive(Resource)]
@@ -17,19 +22,13 @@ const BASE_SPEED: f32 = 500.;
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
-        .add_plugins((
-            DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "My bevy game".to_string(),
-                    ..default()
-                }),
-                ..default()
-            }),
-            player::PlayerPlugin,
-        ))
+        .add_plugins((DefaultPlugins, PlayerPlugin, EnemyPlugin))
         .insert_resource(FixedTime::new_from_secs(1.0 / 60.0))
         .add_systems(Startup, setup_system)
-        .add_systems(Update, movable_system)
+        .add_systems(
+            Update,
+            (movable_system, player_lazer_enemy_collision_system),
+        )
         .run();
 }
 
@@ -64,8 +63,49 @@ fn movable_system(
                 || translation.x > win_size.w + MARGIN
                 || translation.x < -win_size.w - MARGIN
             {
-                println!("->> despawn {entity:?}");
                 commands.entity(entity).despawn();
+            }
+        }
+    }
+}
+
+fn player_lazer_enemy_collision_system(
+    mut commands: Commands,
+    lasers: Query<(Entity, &Transform, &SpriteSize), (With<Laser>, With<FromPlayer>)>,
+    enemies: Query<(Entity, &Transform, &SpriteSize), With<Enemy>>,
+) {
+    let mut despawned_entities: HashSet<Entity> = HashSet::new();
+
+    for (laser_entity, laser_transform, laser_size) in lasers.iter() {
+        if despawned_entities.contains(&laser_entity) {
+            continue;
+        }
+
+        let laser_scale = Vec2::from(laser_transform.scale.xy());
+
+        for (enemy_entity, enemy_transform, enemy_size) in enemies.iter() {
+            if despawned_entities.contains(&enemy_entity)
+                || despawned_entities.contains(&laser_entity)
+            {
+                continue;
+            }
+
+            let enemy_scale = Vec2::from(enemy_transform.scale.xy());
+
+            match collide(
+                laser_transform.translation,
+                laser_size.0 * laser_scale,
+                enemy_transform.translation,
+                enemy_size.0 * enemy_scale,
+            ) {
+                Some(_) => {
+                    commands.entity(enemy_entity).despawn();
+                    despawned_entities.insert(enemy_entity);
+
+                    commands.entity(laser_entity).despawn();
+                    despawned_entities.insert(laser_entity);
+                }
+                _ => (),
             }
         }
     }
